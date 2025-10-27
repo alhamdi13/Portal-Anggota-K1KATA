@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Koperasi K1KATA - Portal Anggota</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { box-sizing: border-box; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-shadow { box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .animate-fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .tab-active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Style untuk Modal Info Pembayaran */
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); transition: opacity 0.3s ease; }
+        .modal-content { transition: all 0.3s ease; transform: translateY(-20px); opacity: 0; }
+        .modal-open .modal-content { transform: translateY(0); opacity: 1; }
+    </style>
+</head>
+<body class="h-full bg-gray-50 font-sans">
+
+    <!-- LAYAR LOADING UTAMA -->
+    <div id="main-loader" class="flex items-center justify-center min-h-full h-screen">
+        <div class="loader"></div>
+    </div>
+
+    <!-- LAYAR LOGIN -->
+    <div id="login-screen" class="min-h-full h-screen justify-center items-center gradient-bg p-6 hidden">
+        <div class="max-w-md w-full bg-white rounded-lg shadow-xl p-8 card-shadow">
+            <div class="text-center mb-6">
+                <h1 class="text-3xl font-bold mb-2 text-gray-800">🏢 KOPERASI K1KATA</h1>
+                <p class="text-gray-600">Portal Digital Anggota</p>
+            </div>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email Anggota</label>
+                    <input type="email" id="email" name="email" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="email@anda.com" required>
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password (No. Kartu Simpanan)</label>
+                    <input type="password" id="password" name="password" class="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="Contoh: 0001" required>
+                </div>
+                <button type="submit" id="login-button" class="w-full gradient-bg text-white px-4 py-3 rounded-lg hover:opacity-90 font-semibold">
+                    Login
+                </button>
+                <p id="login-error" class="text-sm text-center text-red-500 mt-4"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- KONTEN APLIKASI (Dashboard) -->
+    <div id="app-screen" class="min-h-full hidden">
+        <!-- Header -->
+        <header class="gradient-bg text-white shadow-lg">
+            <div class="max-w-md mx-auto px-4 py-6">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="text-left">
+                        <h1 class="text-2xl font-bold">🏢 KOPERASI K1KATA</h1>
+                        <p class="text-blue-100">Portal Digital Anggota</p>
+                    </div>
+                    <button id="logout-button" class="bg-white/20 hover:bg-white/30 text-white font-medium py-2 px-4 rounded-lg text-sm">
+                        Logout
+                    </button>
+                </div>
+                
+                <!-- User Info Card -->
+                <div class="bg-white/20 backdrop-blur-sm rounded-lg p-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center">
+                            <span class="text-xl">👤</span>
+                        </div>
+                        <div>
+                            <h2 class="font-semibold" id="user-name">Memuat...</h2>
+                            <p class="text-sm text-blue-100" id="user-id">No. Anggota: ...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="bg-white shadow-sm sticky top-0 z-10">
+            <div class="max-w-md mx-auto">
+                <div class="flex">
+                    <button onclick="showTab('dashboard')" id="tab-dashboard" class="flex-1 py-3 px-4 text-center font-medium tab-active transition-all">
+                        Dashboard
+                    </button>
+                    <button onclick="showTab('savings')" id="tab-savings" class="flex-1 py-3 px-4 text-center font-medium text-gray-600 hover:text-blue-600 transition-all">
+                        Simpanan
+                    </button>
+                    <button onclick="showTab('management')" id="tab-management" class="flex-1 py-3 px-4 text-center font-medium text-gray-600 hover:text-blue-600 transition-all">
+                        Pengurus
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="max-w-md mx-auto px-4 py-6">
+            <!-- Dashboard Tab -->
+            <div id="content-dashboard" class="animate-fade-in">
+                <!-- Quick Stats -->
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-white rounded-lg p-4 card-shadow">
+                        <div class="text-center">
+                            <div class="text-2xl mb-2">💰</div>
+                            <p class="text-sm text-gray-600">Total Simpanan</p>
+                            <p class="text-lg font-bold text-green-600" id="total-simpanan">Rp 0</p>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg p-4 card-shadow">
+                        <div class="text-center">
+                            <div class="text-2xl mb-2">📅</div>
+                            <p class="text-sm text-gray-600">Bergabung Sejak</p>
+                            <p class="text-lg font-bold text-blue-600" id="bergabung-sejak">...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activities (Akan diisi oleh Firebase) -->
+                <div class="bg-white rounded-lg p-4 card-shadow mb-6">
+                    <h3 class="font-semibold mb-4 flex items-center">
+                        <span class="mr-2">📋</span>
+                        Aktivitas Terbaru
+                    </h3>
+                    <div id="recent-activities-list" class="space-y-3">
+                        <p class="text-sm text-gray-500 text-center">Memuat aktivitas...</p>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="bg-white rounded-lg p-4 card-shadow">
+                    <h3 class="font-semibold mb-4 flex items-center">
+                        <span class="mr-2">⚡</span>
+                        Aksi Cepat
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="showPaymentInfoModal()" class="bg-blue-50 hover:bg-blue-100 p-3 rounded-lg text-center transition-colors">
+                            <div class="text-2xl mb-1">💳</div>
+                            <p class="text-sm font-medium text-blue-700">Info Pembayaran</p>
+                        </button>
+                        <button onclick="showTab('savings')" class="bg-green-50 hover:bg-green-100 p-3 rounded-lg text-center transition-colors">
+                            <div class="text-2xl mb-1">📊</div>
+                            <p class="text-sm font-medium text-green-700">Lihat Riwayat</p>
+                        </button>
+                        <button onclick="showNotification('Fitur pinjaman akan segera tersedia!')" class="bg-purple-50 hover:bg-purple-100 p-3 rounded-lg text-center transition-colors">
+                            <div class="text-2xl mb-1">🏦</div>
+                            <p class="text-sm font-medium text-purple-700">Ajukan Pinjaman</p>
+                        </button>
+                        <button onclick="showTab('management')" class="bg-orange-50 hover:bg-orange-100 p-3 rounded-lg text-center transition-colors">
+                            <div class="text-2xl mb-1">📞</div>
+                            <p class="text-sm font-medium text-orange-700">Hubungi Pengurus</p>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Savings Tab -->
+            <div id="content-savings" class="hidden">
+                <!-- Savings Summary -->
+                <div class="bg-white rounded-lg p-4 card-shadow mb-6">
+                    <h3 class="font-semibold mb-4 flex items-center">
+                        <span class="mr-2">💰</span>
+                        Ringkasan Simpanan
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                            <div>
+                                <p class="font-medium text-blue-800">Simpanan Pokok</p>
+                                <p class="text-sm text-blue-600">Dibayar saat bergabung</p>
+                            </div>
+                            <span class="font-bold text-blue-800" id="simpanan-pokok">Rp 0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                            <div>
+                                <p class="font-medium text-green-800">Simpanan Wajib</p>
+                                <p class="text-sm text-green-600">Akumulasi per bulan</p>
+                            </div>
+                            <span class="font-bold text-green-800" id="simpanan-wajib">Rp 0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+                            <div>
+                                <p class="font-medium text-purple-800">Simpanan Sukarela</p>
+                                <p class="text-sm text-purple-600">Sesuai kemampuan</p>
+                            </div>
+                            <span class="font-bold text-purple-800" id="simpanan-sukarela">Rp 0</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <div class="flex justify-between items-center">
+                            <span class="font-semibold text-lg">Total Simpanan:</span>
+                            <span class="font-bold text-xl text-green-600" id="total-simpanan-2">Rp 0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Savings Info -->
+                <div class="bg-white rounded-lg p-4 card-shadow">
+                    <h3 class="font-semibold mb-4 flex items-center">
+                        <span class="mr-2">ℹ️</span>
+                        Informasi Simpanan
+                    </h3>
+                    <div class="space-y-4 text-sm">
+                         <div class="p-3 bg-blue-50 rounded-lg">
+                            <h4 class="font-medium text-blue-800 mb-2">Simpanan Pokok</h4>
+                            <p class="text-blue-700">Dibayar sekali saat menjadi anggota. Tidak dapat diambil selama masih menjadi anggota.</p>
+                        </div>
+                        <div class="p-3 bg-green-50 rounded-lg">
+                            <h4 class="font-medium text-green-800 mb-2">Simpanan Wajib</h4>
+                            <p class="text-green-700">Dibayar setiap bulan. Dapat diambil saat berhenti menjadi anggota atau sesuai ketentuan.</p>
+                        </div>
+                        <div class="p-3 bg-purple-50 rounded-lg">
+                            <h4 class="font-medium text-purple-800 mb-2">Simpanan Sukarela</h4>
+                            <p class="text-purple-700">Dapat disetor kapan saja. Dapat diambil sewaktu-waktu dengan pemberitahuan terlebih dahulu.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Management Tab -->
+            <div id="content-management" class="hidden">
+                 <!-- Board Members -->
+                <div class="bg-white rounded-lg p-4 card-shadow mb-6">
+                    <h3 class="font-semibold mb-4 flex items-center">
+                        <span class="mr-2">👥</span>
+                        Pengurus Koperasi
+                    </h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center space-x-4 p-3 border border-gray-200 rounded-lg">
+                            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span class="text-xl">👨‍💼</span>
+                            </div>
+                            <div class="flex-1">
+                                <h4 class="font-medium">Ir. Ahmad Wijaya</h4>
+                                <p class="text-sm text-gray-600">Ketua Koperasi</p>
+                                <p class="text-xs text-blue-600">📞 +62 856-1114-745</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-4 p-3 border border-gray-200 rounded-lg">
+                            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                <span class="text-xl">👩‍💼</span>
+                            </div>
+                            <div class="flex-1">
+                                <h4 class="font-medium">Siti Nurhaliza, S.E.</h4>
+                                <p class="text-sm text-gray-600">Sekretaris</p>
+                                <p class="text-xs text-blue-600">📞 +62 856-1114-745</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-4 p-3 border border-gray-200 rounded-lg">
+                            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                                <span class="text-xl">👨‍💻</span>
+                            </div>
+                            <div class="flex-1">
+                                <h4 class="font-medium">Drs. Bambang Sutrisno</h4>
+                                <p class="text-sm text-gray-600">Bendahara</p>
+                                <p class="text-xs text-blue-600">📞 +62 856-1114-745</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                 <!-- Contact Options -->
+                <div class="bg-white rounded-lg p-4 card-shadow mb-6">
+                    <h3 class="font-semibold mb-4 flex items-center">
+                        <span class="mr-2">📞</span>
+                        Hubungi Kami
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="window.open('https://wa.me/6285611114745', '_blank')" class="bg-green-50 hover:bg-green-100 p-4 rounded-lg text-center transition-colors">
+                            <div class="text-2xl mb-2">💬</div>
+                            <p class="text-sm font-medium text-green-700">WhatsApp</p>
+                        </button>
+                        <button onclick="window.open('tel:+6285611114745', '_blank')" class="bg-blue-50 hover:bg-blue-100 p-4 rounded-lg text-center transition-colors">
+                            <div class="text-2xl mb-2">📞</div>
+                            <p class="text-sm font-medium text-blue-700">Telepon</p>
+                        </button>
+                        <button onclick="window.open('mailto:koperasi.k1kata@gmail.com', '_blank')" class="bg-red-50 hover:bg-red-100 p-4 rounded-lg text-center transition-colors">
+                            <div class="text-2xl mb-2">✉️</div>
+                            <p class="text-sm font-medium text-red-700">Email</p>
+                        </button>
+                        <button onclick="window.open('https://instagram.com/koperasi.k1kata', '_blank')" class="bg-pink-50 hover:bg-pink-100 p-4 rounded-lg text-center transition-colors">
+                            <div class="text-2xl mb-2">📱</div>
+                            <p class="text-sm font-medium text-pink-700">Instagram</p>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Notification Toast -->
+        <div id="notification" class="fixed top-4 left-4 right-4 max-w-md mx-auto bg-green-500 text-white p-4 rounded-lg shadow-lg transform -translate-y-full transition-transform duration-300 z-50">
+            <p id="notification-text"></p>
+        </div>
+
+        <!-- MODAL INFO PEMBAYARAN -->
+        <div id="payment-info-modal" class="fixed inset-0 w-full h-full flex items-center justify-center z-40 hidden modal-backdrop">
+            <div class="bg-white rounded-lg p-6 m-4 max-w-sm w-full card-shadow modal-content">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">Informasi Pembayaran</h3>
+                    <button onclick="hidePaymentInfoModal()" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+                </div>
+                <div class="space-y-4">
+                    <p class="text-sm text-gray-700">Silakan transfer ke rekening berikut dan kirimkan bukti transfer ke Admin (Bendahara).</p>
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <p class="font-semibold text-blue-800">Bank Mandiri</p>
+                        <p class="text-lg font-bold text-gray-800">123-456-7890</p>
+                        <p class="text-sm text-gray-700">a/n Koperasi Jasa Kita Satu Kata</p>
+                    </div>
+                    <p class="text-sm text-gray-700">Admin akan mengupdate saldo Anda setelah verifikasi.</p>
+                </div>
+                 <div class="text-right mt-6">
+                    <button type="button" onclick="hidePaymentInfoModal()" class="gradient-bg text-white px-4 py-2 rounded-lg hover:opacity-90">
+                        Mengerti
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import Firebase services
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged, 
+            signInWithEmailAndPassword, 
+            signOut,
+            signInWithCustomToken // <-- Import ini ada, tapi tidak akan kita gunakan di init
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            collection,
+            query,
+            where,
+            onSnapshot,
+            setLogLevel
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- KONFIGURASI FIREBASE (SUDAH DIUPDATE) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5oAiObdlEnDyWJzrdIqfeitv4GzOZ72U",
+            authDomain: "koperasi-k1kata.firebaseapp.com",
+            projectId: "koperasi-k1kata",
+            storageBucket: "koperasi-k1kata.firebasestorage.app",
+            messagingSenderId: "426088050905",
+            appId: "1:426088050905:web:efd48f8ab64dd80ed08ec8",
+            measurementId: "G-0H2HVTBB8E"
+        };
+        // ------------------------------------------
+
+        // Variabel global
+        let app, auth, db;
+        let currentUserId = null;
+        let unsubscribeUserData = null;
+        let unsubscribeTransactions = null;
+
+        // Elemen UI
+        const mainLoader = document.getElementById('main-loader');
+        const loginScreen = document.getElementById('login-screen');
+        const appScreen = document.getElementById('app-screen');
+        const loginForm = document.getElementById('login-form');
+        const loginButton = document.getElementById('login-button');
+        const loginError = document.getElementById('login-error');
+        const logoutButton = document.getElementById('logout-button');
+        
+        // Elemen Data
+        const userNameEl = document.getElementById('user-name');
+        const userIdEl = document.getElementById('user-id');
+        const totalSimpananEl = document.getElementById('total-simpanan');
+        const totalSimpananEl2 = document.getElementById('total-simpanan-2');
+        const bergabungSejakEl = document.getElementById('bergabung-sejak');
+        const simpananPokokEl = document.getElementById('simpanan-pokok');
+        const simpananWajibEl = document.getElementById('simpanan-wajib');
+        const simpananSukarelaEl = document.getElementById('simpanan-sukarela');
+        const activitiesListEl = document.getElementById('recent-activities-list');
+
+        // Fungsi Inisialisasi
+        async function initializeFirebase() {
+            try {
+                // Gunakan config yang sudah di-hardcode
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                setLogLevel('Debug');
+                
+                // --- PERBAIKAN ---
+                // Menghapus panggilan signInWithCustomToken karena
+                // config Firebase ini milik Anda, bukan dari environment.
+                // if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                //     await signInWithCustomToken(auth, __initial_auth_token);
+                // }
+                
+                // Langsung setup listener
+                setupAuthListener();
+            } catch (error) {
+                console.error("Firebase Gagal diinisialisasi:", error);
+                mainLoader.innerHTML = "Gagal memuat aplikasi.";
+            }
+        }
+
+        // Listener Status Autentikasi
+        function setupAuthListener() {
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUserId = user.uid;
+                    showAppScreen();
+                    fetchUserData(user.uid);
+                    fetchUserTransactions(user.uid);
+                } else {
+                    currentUserId = null;
+                    showLoginScreen();
+                    cleanupListeners();
+                }
+                mainLoader.classList.add('hidden');
+            });
+        }
+        
+        // Menampilkan UI yang sesuai
+        function showLoginScreen() {
+            loginScreen.classList.remove('hidden');
+            loginScreen.classList.add('flex');
+            appScreen.classList.add('hidden');
+        }
+
+        function showAppScreen() {
+            loginScreen.classList.add('hidden');
+            loginScreen.classList.remove('flex');
+            appScreen.classList.remove('hidden');
+            showTab('dashboard');
+        }
+
+        // Mengambil Data Pengguna dari Firestore
+        function fetchUserData(uid) {
+            if (unsubscribeUserData) unsubscribeUserData();
+            const userDocRef = doc(db, "users", uid);
+            
+            unsubscribeUserData = onSnapshot(userDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    updateUIData(data);
+                } else {
+                    console.error("Data pengguna tidak ditemukan di Firestore!");
+                    showErrorNotification("Gagal memuat data anggota.");
+                    signOut(auth); // Logout jika data tidak ada
+                }
+            }, (error) => {
+                console.error("Error mengambil data pengguna:", error);
+                showErrorNotification("Error jaringan saat ambil data.");
+            });
+        }
+        
+        // Mengambil Data Transaksi dari Firestore
+        function fetchUserTransactions(uid) {
+            if (unsubscribeTransactions) unsubscribeTransactions();
+            const transRef = collection(db, "transactions");
+            // Query untuk transaksi milik user ini saja
+            const q = query(transRef, where("userId", "==", uid));
+
+            unsubscribeTransactions = onSnapshot(q, (querySnapshot) => {
+                activitiesListEl.innerHTML = '';
+                if (querySnapshot.empty) {
+                    activitiesListEl.innerHTML = '<p class="text-sm text-gray-500 text-center">Belum ada aktivitas.</p>';
+                    return;
+                }
+                
+                const transactions = [];
+                querySnapshot.forEach((doc) => transactions.push(doc.data()));
+                // Urutkan berdasarkan timestamp terbaru
+                transactions.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
+
+                // Tampilkan 5 terbaru
+                transactions.slice(0, 5).forEach((data) => {
+                    const date = data.timestamp.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                    const amount = formatCurrency(data.jumlah);
+                    
+                    const activityHtml = `
+                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                            <div>
+                                <p class="font-medium text-sm">${data.jenis}</p>
+                                <p class="text-xs text-gray-500">${date}</p>
+                            </div>
+                            <span class="text-green-600 font-semibold">+${amount}</span>
+                        </div>
+                    `;
+                    activitiesListEl.innerHTML += activityHtml;
+                });
+            }, (error) => {
+                console.error("Error mengambil transaksi:", error);
+                activitiesListEl.innerHTML = '<p class="text-sm text-red-500 text-center">Gagal memuat aktivitas.</p>';
+            });
+        }
+
+        // Memperbarui Elemen UI dengan data
+        function updateUIData(data) {
+            const total = (data.simpananPokok || 0) + (data.simpananWajib || 0) + (data.simpananSukarela || 0);
+
+            userNameEl.textContent = data.nama;
+            userIdEl.textContent = `No. Anggota: ${data.noAnggota}`;
+            bergabungSejakEl.textContent = data.bergabung || '...';
+            totalSimpananEl.textContent = formatCurrency(total);
+            
+            // Update juga di tab simpanan
+            totalSimpananEl2.textContent = formatCurrency(total);
+            simpananPokokEl.textContent = formatCurrency(data.simpananPokok || 0);
+            simpananWajibEl.textContent = formatCurrency(data.simpananWajib || 0);
+            simpananSukarelaEl.textContent = formatCurrency(data.simpananSukarela || 0);
+        }
+
+        // Hentikan semua listener
+        function cleanupListeners() {
+            if (unsubscribeUserData) unsubscribeUserData();
+            if (unsubscribeTransactions) unsubscribeTransactions();
+        }
+
+        // --- HANDLER UNTUK AKSI PENGGUNA ---
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            loginButton.disabled = true;
+            loginButton.textContent = 'Memverifikasi...';
+            loginError.textContent = '';
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                // onAuthStateChanged akan menangani sisanya
+            } catch (error) {
+                console.error("Login Gagal:", error.code);
+                if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+                     loginError.textContent = 'Email atau Password (No. Kartu) salah.';
+                } else {
+                     loginError.textContent = 'Terjadi error saat login.';
+                }
+            } finally {
+                loginButton.disabled = false;
+                loginButton.textContent = 'Login';
+            }
+        });
+
+        logoutButton.addEventListener('click', async () => {
+            await signOut(auth);
+        });
+
+        // --- FUNGSI TAB & NOTIFIKASI ---
+        window.showTab = function(tabName) {
+            document.getElementById('content-dashboard').classList.add('hidden');
+            document.getElementById('content-savings').classList.add('hidden');
+            document.getElementById('content-management').classList.add('hidden');
+            
+            document.getElementById('tab-dashboard').classList.remove('tab-active');
+            document.getElementById('tab-savings').classList.remove('tab-active');
+            document.getElementById('tab-management').classList.remove('tab-active');
+            
+            document.getElementById('tab-dashboard').classList.add('text-gray-600');
+            document.getElementById('tab-savings').classList.add('text-gray-600');
+            document.getElementById('tab-management').classList.add('text-gray-600');
+            
+            document.getElementById('content-' + tabName).classList.remove('hidden');
+            document.getElementById('content-' + tabName).classList.add('animate-fade-in');
+            
+            const activeTab = document.getElementById('tab-' + tabName);
+            activeTab.classList.add('tab-active');
+            activeTab.classList.remove('text-gray-600');
+        }
+
+        window.showNotification = function(message) {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notification-text');
+            notificationText.textContent = message;
+            notification.classList.remove('-translate-y-full', 'bg-red-500');
+            notification.classList.add('translate-y-0', 'bg-green-500');
+            setTimeout(() => {
+                notification.classList.remove('translate-y-0');
+                notification.classList.add('-translate-y-full');
+            }, 3000);
+        }
+
+        window.showErrorNotification = function(message) {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notification-text');
+            notificationText.textContent = message;
+            notification.classList.remove('-translate-y-full', 'bg-green-500');
+            notification.classList.add('translate-y-0', 'bg-red-500');
+            setTimeout(() => {
+                notification.classList.remove('translate-y-0');
+                notification.classList.add('-translate-y-full');
+            }, 3000);
+        }
+
+        // --- FUNGSI MODAL INFO PEMBAYARAN ---
+        const infoModal = document.getElementById('payment-info-modal');
+
+        window.showPaymentInfoModal = function() {
+            infoModal.classList.remove('hidden');
+            document.body.classList.add('modal-open');
+        }
+
+        window.hidePaymentInfoModal = function() {
+            infoModal.classList.add('hidden');
+            document.body.classList.remove('modal-open');
+        }
+        
+        // --- Fungsi utilitas ---
+        function formatCurrency(number) {
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                minimumFractionDigits: 0
+            }).format(number);
+        }
+
+        // --- Inisialisasi Aplikasi ---
+        initializeFirebase();
+    </script>
+</body>
+</html>
+
