@@ -34,6 +34,9 @@
         .modal-backdrop { background-color: rgba(0,0,0,0.5); transition: opacity 0.3s ease; }
         .modal-content { transition: all 0.3s ease; transform: translateY(-20px); opacity: 0; }
         .modal-open .modal-content { transform: translateY(0); opacity: 1; }
+        /* Style untuk kartu tunggakan */
+        .status-lunas { background-color: #dcfce7; color: #166534; } /* Hijau */
+        .status-menunggak { background-color: #fee2e2; color: #991b1b; } /* Merah */
     </style>
 </head>
 <body class="h-full bg-gray-50 font-sans">
@@ -136,6 +139,17 @@
                     </div>
                 </div>
 
+                <!-- Kartu Tunggakan Baru -->
+                <div id="arrears-card" class="bg-white rounded-lg p-4 card-shadow mb-6 hidden">
+                    <h3 class="font-semibold mb-3 flex items-center">
+                        <span class="mr-2 text-xl">⚠️</span> Status Simpanan Wajib
+                    </h3>
+                    <div id="arrears-info" class="p-3 rounded-lg text-center">
+                        <p class="text-sm" id="arrears-status-text">Memeriksa...</p>
+                        <p class="text-xl font-bold mt-1" id="arrears-amount">Rp 0</p>
+                    </div>
+                </div>
+
                 <!-- Recent Activities (Akan diisi oleh Firebase) -->
                 <div class="bg-white rounded-lg p-4 card-shadow mb-6">
                     <h3 class="font-semibold mb-4 flex items-center">
@@ -226,7 +240,7 @@
                         </div>
                         <div class="p-3 bg-green-50 rounded-lg">
                             <h4 class="font-medium text-green-800 mb-2">Simpanan Wajib</h4>
-                            <p class="text-green-700">Dibayar setiap bulan. Dapat diambil saat berhenti menjadi anggota atau sesuai ketentuan.</p>
+                            <p class="text-green-700">Dibayar setiap bulan (Rp 25.000). Dapat diambil saat berhenti menjadi anggota atau sesuai ketentuan.</p> <!-- Tambah info nilai -->
                         </div>
                         <div class="p-3 bg-purple-50 rounded-lg">
                             <h4 class="font-medium text-purple-800 mb-2">Simpanan Sukarela</h4>
@@ -321,7 +335,7 @@
                     <p class="text-sm text-gray-700">Silakan transfer ke rekening berikut dan kirimkan bukti transfer ke Admin (Bendahara).</p>
                     <div class="bg-blue-50 p-4 rounded-lg">
                         <p class="font-semibold text-blue-800">Bank Mandiri</p>
-                        <p class="text-lg font-bold text-gray-800">1370021932393</p>
+                        <p class="text-lg font-bold text-gray-800">123-456-7890</p>
                         <p class="text-sm text-gray-700">a/n Koperasi Jasa Kita Satu Kata</p>
                     </div>
                     <p class="text-sm text-gray-700">Admin akan mengupdate saldo Anda setelah verifikasi.</p>
@@ -345,7 +359,6 @@
             onAuthStateChanged, 
             signInWithEmailAndPassword, 
             signOut,
-            signInWithCustomToken // <-- Import ini ada, tapi tidak akan kita gunakan di init
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, 
@@ -354,10 +367,11 @@
             query,
             where,
             onSnapshot,
-            setLogLevel
+            setLogLevel,
+            // orderBy <--- Hapus orderBy
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- KONFIGURASI FIREBASE (SUDAH DIUPDATE) ---
+        // --- KONFIGURASI FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyB5oAiObdlEnDyWJzrdIqfeitv4GzOZ72U",
             authDomain: "koperasi-k1kata.firebaseapp.com",
@@ -368,6 +382,8 @@
             measurementId: "G-0H2HVTBB8E"
         };
         // ------------------------------------------
+        
+        const SIMPANAN_WAJIB_BULANAN = 25000; // Definisikan konstanta
 
         // Variabel global
         let app, auth, db;
@@ -394,24 +410,20 @@
         const simpananWajibEl = document.getElementById('simpanan-wajib');
         const simpananSukarelaEl = document.getElementById('simpanan-sukarela');
         const activitiesListEl = document.getElementById('recent-activities-list');
+        
+        // Elemen Kartu Tunggakan
+        const arrearsCardEl = document.getElementById('arrears-card');
+        const arrearsInfoEl = document.getElementById('arrears-info');
+        const arrearsStatusTextEl = document.getElementById('arrears-status-text');
+        const arrearsAmountEl = document.getElementById('arrears-amount');
 
         // Fungsi Inisialisasi
         async function initializeFirebase() {
             try {
-                // Gunakan config yang sudah di-hardcode
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
                 setLogLevel('Debug');
-                
-                // --- PERBAIKAN ---
-                // Menghapus panggilan signInWithCustomToken karena
-                // config Firebase ini milik Anda, bukan dari environment.
-                // if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                //     await signInWithCustomToken(auth, __initial_auth_token);
-                // }
-                
-                // Langsung setup listener
                 setupAuthListener();
             } catch (error) {
                 console.error("Firebase Gagal diinisialisasi:", error);
@@ -462,7 +474,7 @@
                 } else {
                     console.error("Data pengguna tidak ditemukan di Firestore!");
                     showErrorNotification("Gagal memuat data anggota.");
-                    signOut(auth); // Logout jika data tidak ada
+                    signOut(auth); 
                 }
             }, (error) => {
                 console.error("Error mengambil data pengguna:", error);
@@ -474,8 +486,8 @@
         function fetchUserTransactions(uid) {
             if (unsubscribeTransactions) unsubscribeTransactions();
             const transRef = collection(db, "transactions");
-            // Query untuk transaksi milik user ini saja
-            const q = query(transRef, where("userId", "==", uid));
+            // Hapus orderBy dari query
+            const q = query(transRef, where("userId", "==", uid)); 
 
             unsubscribeTransactions = onSnapshot(q, (querySnapshot) => {
                 activitiesListEl.innerHTML = '';
@@ -484,10 +496,12 @@
                     return;
                 }
                 
-                const transactions = [];
+                let transactions = []; // Gunakan let
                 querySnapshot.forEach((doc) => transactions.push(doc.data()));
-                // Urutkan berdasarkan timestamp terbaru
-                transactions.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
+                
+                // --- Lakukan Pengurutan di Sisi Klien ---
+                transactions.sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate()); 
+                // ----------------------------------------
 
                 // Tampilkan 5 terbaru
                 transactions.slice(0, 5).forEach((data) => {
@@ -520,12 +534,81 @@
             bergabungSejakEl.textContent = data.bergabung || '...';
             totalSimpananEl.textContent = formatCurrency(total);
             
-            // Update juga di tab simpanan
             totalSimpananEl2.textContent = formatCurrency(total);
             simpananPokokEl.textContent = formatCurrency(data.simpananPokok || 0);
             simpananWajibEl.textContent = formatCurrency(data.simpananWajib || 0);
             simpananSukarelaEl.textContent = formatCurrency(data.simpananSukarela || 0);
+            
+            // Hitung dan tampilkan tunggakan
+            updateArrearsCard(data.bergabung, data.simpananWajib);
         }
+        
+        // Fungsi untuk menghitung dan menampilkan tunggakan
+        function updateArrearsCard(joinDateString, simpananWajibPaid) {
+            const arrearsData = calculateArrears(joinDateString, simpananWajibPaid);
+            
+            arrearsCardEl.classList.remove('hidden'); // Tampilkan kartu
+            
+            if (arrearsData.status === 'active') {
+                arrearsInfoEl.className = 'p-3 rounded-lg text-center status-lunas'; // Kelas hijau
+                arrearsStatusTextEl.textContent = "Simpanan Wajib Anda Lunas 🎉";
+                arrearsAmountEl.textContent = ""; // Kosongkan jumlah jika lunas
+            } else if (arrearsData.status === 'overdue') {
+                arrearsInfoEl.className = 'p-3 rounded-lg text-center status-menunggak'; // Kelas merah
+                arrearsStatusTextEl.textContent = `Anda memiliki tunggakan Simpanan Wajib sebesar:`;
+                arrearsAmountEl.textContent = formatCurrency(arrearsData.amount);
+            } else { // Jika status 'unknown' (misal, tanggal tidak valid)
+                 arrearsInfoEl.className = 'p-3 rounded-lg text-center bg-gray-100 text-gray-600';
+                 arrearsStatusTextEl.textContent = "Status simpanan wajib tidak dapat ditentukan.";
+                 arrearsAmountEl.textContent = "";
+            }
+        }
+        
+        // Fungsi untuk menghitung tunggakan (mirip dengan di admin)
+        function calculateArrears(joinDateString, simpananWajibPaid) {
+            if (!joinDateString) return { status: 'unknown', amount: 0 }; 
+
+            const parts = joinDateString.split(' ');
+            if (parts.length !== 3) return { status: 'unknown', amount: 0 };
+            
+            const day = parseInt(parts[0], 10);
+            const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+            const monthIndex = monthNames.findIndex(m => m.toLowerCase() === parts[1].toLowerCase());
+            const year = parseInt(parts[2], 10);
+
+            if (isNaN(day) || monthIndex === -1 || isNaN(year)) return { status: 'unknown', amount: 0 };
+
+            const joinDate = new Date(year, monthIndex, day);
+            const today = new Date();
+            
+            let monthsPassed = (today.getFullYear() - joinDate.getFullYear()) * 12;
+            monthsPassed -= joinDate.getMonth();
+            monthsPassed += today.getMonth();
+
+            // Koreksi: Jika baru bergabung bulan ini, belum ada kewajiban bulan ini.
+            if (today.getFullYear() === joinDate.getFullYear() && today.getMonth() === joinDate.getMonth()) {
+                 monthsPassed = 0;
+            } else if (monthsPassed < 0) {
+                 monthsPassed = 0; // Handle jika tanggal join di masa depan (tidak mungkin tapi jaga2)
+            } else {
+                 // Kewajiban dimulai bulan *berikutnya* setelah bergabung
+                 // Jika join bulan Mei, kewajiban mulai Juni.
+                 // Jika sekarang Juni, baru 1 bulan kewajiban.
+                 // Hitungan monthsPassed sudah benar untuk ini.
+            }
+
+
+            const expectedWajib = monthsPassed * SIMPANAN_WAJIB_BULANAN;
+            const actualWajib = simpananWajibPaid || 0;
+            const arrearsAmount = expectedWajib - actualWajib;
+
+            if (arrearsAmount <= 0) {
+                return { status: 'active', amount: 0 };
+            } else {
+                return { status: 'overdue', amount: arrearsAmount };
+            }
+        }
+
 
         // Hentikan semua listener
         function cleanupListeners() {
@@ -545,10 +628,9 @@
 
             try {
                 await signInWithEmailAndPassword(auth, email, password);
-                // onAuthStateChanged akan menangani sisanya
             } catch (error) {
                 console.error("Login Gagal:", error.code);
-                if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+                if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-value-(password),-starting-an-object-on-a-scalar-field') { // Handle error spesifik ini
                      loginError.textContent = 'Email atau Password (No. Kartu) salah.';
                 } else {
                      loginError.textContent = 'Terjadi error saat login.';
@@ -624,11 +706,12 @@
         
         // --- Fungsi utilitas ---
         function formatCurrency(number) {
-            return new Intl.NumberFormat('id-ID', {
-                style: 'currency',
-                currency: 'IDR',
-                minimumFractionDigits: 0
-            }).format(number);
+            // Pastikan number adalah angka, default ke 0 jika tidak valid
+            const num = Number(number);
+            if (isNaN(num)) {
+                return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(0);
+            }
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
         }
 
         // --- Inisialisasi Aplikasi ---
@@ -636,5 +719,4 @@
     </script>
 </body>
 </html>
-
 
